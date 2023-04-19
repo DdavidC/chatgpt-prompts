@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>ChatGPT promptちゃん</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js"></script>
+</head>
+
+<body>
+  <h1>ChatGPT promptちゃん</h1>
+  <table>
+    <tr>
+      <td><img src="icon01.png" alt="ChatGPT promptちゃん" width="32" height="32"></td>
+      <td>：</td>
+      <td id="talk-message" class="talk-message">請選擇需要的 ChatGPT prompt！</td>
+    </tr>
+  </table>
+  <div class="control">
+    <div id="select-wrapper">
+      <div class="search-wrapper">
+        <input type="text" id="search-input" placeholder="搜尋">
+        <button id="clear-button">清除篩選</button>
+      </div>
+      <select id="prompt-select"></select>
+    </div>
+    <div id="button-container">
+      <button id="add-button">新增</button>
+      <button id="delete-button">刪除</button>
+    </div>
+  </div>
+  <div class="control">
+    <input type="text" id="new-title" placeholder="輸入標題">
+    <textarea id="new-prompt" placeholder="輸入 prompt"></textarea>
+    <button id="use-button">使用</button>
+  </div>
+</body>
+
+</html>
