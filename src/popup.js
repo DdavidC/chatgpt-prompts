@@ -1,9 +1,10 @@
 document.addEventListener('DOMContentLoaded', function () {
     var exportButton = document.getElementById('export-button');
     var importButton = document.getElementById('import-button');
+    var resetButton = document.getElementById('reset-button');
     var searchInput = document.getElementById('search-input');
     var clearButton = document.getElementById('clear-button');
-    var select = document.getElementById('prompt-select');
+    var promptSelect = document.getElementById('prompt-select');
     var moveUpButton = document.getElementById('move-up');
     var moveDownButton = document.getElementById('move-down');
     var addButton = document.getElementById('add-button');
@@ -13,197 +14,202 @@ document.addEventListener('DOMContentLoaded', function () {
     var directInputCheckbox = document.getElementById('direct-input-checkbox');
     var useButton = document.getElementById('use-button');
 
-    // 將 localStorage 內的字串陣列加入選單中
-    function loadOptionsFromStorage() {
-        var options = JSON.parse(localStorage.getItem('chatGPTPromptList')) || [];
-
-        for (var i = 0; i < options.length; i++) {
-            var optionValue = options[i];
-            // 從 optionValue 物件中取出 title, prompt, directInput，如果有錯就刪除該項
-            try {
-                var { title, prompt, directInput } = JSON.parse(optionValue);
-            } catch (error) {
-                options.splice(i, 1);
-                i--;
-                continue;
-            }
-
-            var option = document.createElement('option');
-            option.value = JSON.stringify({ title, prompt, directInput });
-            option.innerHTML = title;
-            select.appendChild(option);
+    function getPromptObjAtIndex(index) {
+        if (index < 0) {
+            return null;
         }
-
-        if (select.selectedIndex !== -1) {
-            var selectedOptionValue = options[select.selectedIndex];
-            var { title, prompt, directInput } = JSON.parse(selectedOptionValue);
-            newTitle.value = title;
-            newPrompt.value = prompt;
-            directInputCheckbox.checked = directInput === 'true';
-        }
+        var promptList = JSON.parse(localStorage.getItem('promptList')) || [];
+        return promptList[index];
     }
 
-    function saveOptionsToStorage() {
-        var options = [];
-        for (var i = 0; i < select.options.length; i++) {
-            options.push(select.options[i].value);
-        }
-        localStorage.setItem('chatGPTPromptList', JSON.stringify(options));
+    function createNewPromptObj(title, prompt, isDirectInput) {
+        return {
+            title: title,
+            prompt: prompt,
+            isDirectInput: isDirectInput
+        };
     }
 
-    // 將新增的選項加入選單
-    function addOption(title, prompt, isDirectInput) {
+    function addPromptObjToPromptSelect(promptObj, index) {
         var option = document.createElement('option');
-        option.innerHTML = title;
-        option.value = JSON.stringify({ title, prompt, isDirectInput });
-        select.appendChild(option);
+        option.value = index;
+        option.text = promptObj.title;
+        promptSelect.add(option);
     }
 
-    // 監聽「存為 Json」按鈕的點擊事件
+    function loadPromptObjectToUI(promptObject) {
+        if (!promptObject) {
+            return;
+        }
+        newTitle.value = promptObject.title;
+        newPrompt.value = promptObject.prompt;
+        directInputCheckbox.checked = promptObject.isDirectInput;
+    }
+
+    function savePromptObj(promptObj) {
+        var promptList = JSON.parse(localStorage.getItem('promptList')) || [];
+        promptList.push(promptObj);
+        localStorage.setItem('promptList', JSON.stringify(promptList));
+    }
+
+    function filterPromptList(keyword) {
+        var promptList = JSON.parse(localStorage.getItem('promptList')) || [];
+        promptSelect.innerHTML = '';
+        for (var i = 0; i < promptList.length; i++) {
+            var promptObj = promptList[i];
+            if (promptObj.title.indexOf(keyword) >= 0) {
+                addPromptObjToPromptSelect(promptObj, i);
+            }
+        }
+        if (promptSelect.options.length > 0) {
+            promptSelect.selectedIndex = 0;
+            loadPromptObjectToUI(getPromptObjAtIndex(promptSelect.selectedIndex));
+        }
+    }
+
     exportButton.addEventListener('click', function () {
         var filename = window.prompt('請輸入檔名', 'prompts.json');
         if (!filename) {
             return;
         }
-
-        var options = JSON.parse(localStorage.getItem('chatGPTPromptList')) || [];
-        var jsonData = JSON.stringify(options, null, 2);
-        var blob = new Blob([jsonData], { type: "application/json" });
+        var promptList = JSON.parse(localStorage.getItem('promptList')) || [];
+        var content = JSON.stringify(promptList, null, 2);
+        var blob = new Blob([content], { type: 'text/plain' });
         var url = URL.createObjectURL(blob);
-
-        var link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
         URL.revokeObjectURL(url);
     });
 
-    // 監聽「從 Json 匯入」按鈕的點擊事件
     importButton.addEventListener('click', function () {
-        var fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'application/json';
-        fileInput.click();
-
-        fileInput.addEventListener('change', function () {
-            var file = fileInput.files[0];
-            if (!file) {
-                return;
-            }
-
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = function () {
+            var file = this.files[0];
             var reader = new FileReader();
-            reader.readAsText(file, 'utf-8');
-            reader.onload = function (e) {
-                var result = e.target.result;
-                var options = JSON.parse(result);
-                localStorage.setItem('chatGPTPromptList', JSON.stringify(options));
-                location.reload();
+            reader.readAsText(file);
+            reader.onload = function () {
+                try {
+                    var importedPromptList = JSON.parse(reader.result);
+                    localStorage.setItem('promptList', JSON.stringify(importedPromptList));
+                    filterPromptList(searchInput.value);
+                } catch (e) {
+                    alert('匯入失敗：' + e.message);
+                }
             };
-
-            loadOptionsFromStorage();
-        });
+        };
+        input.click();
     });
 
-    // 監聽搜尋輸入框的輸入事件
+    resetButton.addEventListener('click', function () {
+        localStorage.removeItem('promptList');
+        promptSelect.innerHTML = '';
+    });
+
     searchInput.addEventListener('input', function () {
-        var options = JSON.parse(localStorage.getItem('chatGPTPromptList')) || [];
-        var searchValue = searchInput.value.trim().toLowerCase();
-        select.innerHTML = '';
-        for (var i = 0; i < options.length; i++) {
-            var optionValue = options[i];
-            var { title, prompt, directInput } = JSON.parse(optionValue);
-            // 搜尋 title 中是否包含搜尋關鍵字，如果有就加入選項中
-            if (title.toLowerCase().includes(searchValue)) {
-                addOption(title, prompt, directInput);
-            }
-        }
+        var searchStr = searchInput.value.trim().toLowerCase();
+        filterPromptList(searchStr);
     });
 
-    // 監聽清除篩選按鈕的點擊事件
     clearButton.addEventListener('click', function () {
         searchInput.value = '';
-        select.innerHTML = '';
-        loadOptionsFromStorage();
+        filterPromptList('');
     });
 
-    // 監聽選單的選擇事件
-    select.addEventListener('change', function () {
-        var options = JSON.parse(localStorage.getItem('chatGPTPromptList')) || [];
-        var selectedOptionValue = options[select.selectedIndex];
-        var { title, prompt, directInput } = JSON.parse(selectedOptionValue);
-        newTitle.value = title;
-        newPrompt.value = prompt;
-        directInputCheckbox.checked = directInput;
+    promptSelect.addEventListener('change', function () {
+        loadPromptObjectToUI(getPromptObjAtIndex(promptSelect.selectedIndex));
     });
 
-    // 監聽向上移動按鈕的點擊事件
+    function swapPrompt(selectIndex1, selectIndex2, promptListIndex1, promptListIndex2) {
+        var promptList = JSON.parse(localStorage.getItem('promptList')) || [];
+        var temp = promptList[promptListIndex1];
+        promptList[promptListIndex1] = promptList[promptListIndex2];
+        promptList[promptListIndex2] = temp;
+        localStorage.setItem('promptList', JSON.stringify(promptList));
+
+        var tempOption = promptSelect.options[selectIndex1];
+        promptSelect.remove(selectIndex1);
+        promptSelect.add(tempOption, selectIndex2);
+
+        var tempIndex = promptSelect.options[selectIndex1].value;
+        promptSelect.options[selectIndex1].value = promptSelect.options[selectIndex2].value;
+        promptSelect.options[selectIndex2].value = tempIndex;
+
+        promptSelect.selectedIndex = selectIndex2;
+    }
+
     moveUpButton.addEventListener('click', function () {
-        var selectedIndex = select.selectedIndex;
-        if (selectedIndex > 0) {
-            var option = select.options[selectedIndex];
-            select.removeChild(option);
-            select.add(option, selectedIndex - 1);
-            saveOptionsToStorage();
+        if (promptSelect.selectedIndex <= 0) {
+            return;
         }
+        swapPrompt(
+            promptSelect.selectedIndex, promptSelect.selectedIndex - 1,
+            promptSelect.options[promptSelect.selectedIndex].value, promptSelect.options[promptSelect.selectedIndex - 1].value
+        );
+        loadPromptObjectToUI(getPromptObjAtIndex(promptSelect.selectedIndex));
     });
 
-    // 監聽向下移動按鈕的點擊事件
     moveDownButton.addEventListener('click', function () {
-        var selectedIndex = select.selectedIndex;
-        if (selectedIndex >= 0 && selectedIndex < select.options.length - 1) {
-            var option = select.options[selectedIndex];
-            select.removeChild(option);
-            select.add(option, selectedIndex + 1);
-            saveOptionsToStorage();
+        if (promptSelect.selectedIndex >= promptSelect.options.length - 1) {
+            return;
         }
+        swapPrompt(
+            promptSelect.selectedIndex, promptSelect.selectedIndex + 1,
+            promptSelect.options[promptSelect.selectedIndex].value, promptSelect.options[promptSelect.selectedIndex + 1].value
+        );
+        loadPromptObjectToUI(getPromptObjAtIndex(promptSelect.selectedIndex));
     });
 
-    // 新增按鈕點擊事件處理函數
     addButton.addEventListener('click', function () {
         var title = newTitle.value;
         var prompt = newPrompt.value;
         var isDirectInput = directInputCheckbox.checked;
 
-        if (title && prompt) {
-            addOption(title, prompt, isDirectInput);
-            saveOptionsToStorage();
+        if (!title || !prompt) {
+            alert('請輸入標題和 prompt！');
+            return;
         }
+
+        var newPromptObj = createNewPromptObj(title, prompt, isDirectInput);
+        var currentLength = promptSelect.options.length;
+        addPromptObjToPromptSelect(newPromptObj, promptSelect.options.length);
+        savePromptObj(newPromptObj);
+        filterPromptList(searchInput.value);
+        if (promptSelect.options.length > currentLength) {
+            promptSelect.selectedIndex = promptSelect.options.length - 1;
+        }
+        loadPromptObjectToUI(getPromptObjAtIndex(promptSelect.selectedIndex));
     });
 
-    // 監聽刪除按鈕的點擊事件
     deleteButton.addEventListener('click', function () {
-        var selectedIndex = select.selectedIndex;
-        if (selectedIndex >= 0) {
-            select.removeChild(select.options[selectedIndex]);
-            saveOptionsToStorage();
-        }
+        var selectedIndex = promptSelect.selectedIndex;
+        var promptListIndex1 = promptSelect.options[selectedIndex].value;
+        var promptList = JSON.parse(localStorage.getItem('promptList')) || [];
 
-        if (select.options.length > 0) {
-            var selectedOptionValue = options[select.selectedIndex];
-            var { title, prompt, directInput } = JSON.parse(selectedOptionValue);
-            newTitle.value = title;
-            newPrompt.value = prompt;
-            directInputCheckbox.checked = directInput;
-        }
+        promptList.splice(promptListIndex1, 1);
+        localStorage.setItem('promptList', JSON.stringify(promptList));
+
+        promptSelect.remove(selectedIndex);
+        filterPromptList(searchInput.value);
+        loadPromptObjectToUI(getPromptObjAtIndex(promptSelect.selectedIndex));
     });
 
-    // 監聽 newTitle 輸入框的點擊事件
     newTitle.addEventListener('click', function () {
         this.select();
         this.setSelectionRange(0, this.value.length);
     });
 
-    // 監聽使用按鈕的點擊事件
     useButton.addEventListener('click', function () {
-        var value = select.value;
+        var promptObj = getPromptObjAtIndex(promptSelect.options[promptSelect.selectedIndex].value);
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             chrome.scripting.executeScript({
                 target: { tabId: tabs[0].id },
-                function: function (value, directInput) {
+                function: function (prompt, directInput) {
                     var textarea = document.querySelector('#__next form.stretch textarea');
-                    textarea.value = value;
+                    textarea.value = prompt;
 
                     // 檢查是否需要展開為多行
                     if (textarea.scrollHeight > textarea.clientHeight) {
@@ -215,12 +221,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         button.click();
                     }
                 },
-                args: [value, directInputCheckbox.checked]
+                args: [promptObj.prompt, promptObj.isDirectInput]
             });
         });
     });
 
-    loadOptionsFromStorage();
+    var promptList = JSON.parse(localStorage.getItem('promptList')) || [];
+    for (var i = 0; i < promptList.length; i++) {
+        var option = document.createElement('option');
+        promptObj = promptList[i];
+        addPromptObjToPromptSelect(promptObj, i);
+    }
+    loadPromptObjectToUI(getPromptObjAtIndex(promptSelect.selectedIndex));
 
     // 判斷是否在 chat.openai.com 頁面中
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -232,16 +244,15 @@ document.addEventListener('DOMContentLoaded', function () {
         chrome.scripting.executeScript({
             target: { tabId: tabs[0].id },
             function: function () {
-                var textarea = document.querySelector('#__next form.stretch textarea');
-                if (!textarea) {
+                var chatGPTTextarea = document.querySelector('#__next form.stretch textarea');
+                if (!chatGPTTextarea) {
                     return null;
                 }
                 return textarea.value;
             }
         }, function (results) {
             if (results && results[0].result) {
-                newTitle.value = '從 ChatGPT 輸入框中取得';
-                newPrompt.value = results[0].result;
+                loadPromptObjectToUI(createNewPromptObj('從 ChatGPT 輸入框中取得', results[0].result, false));
             }
         });
     });
