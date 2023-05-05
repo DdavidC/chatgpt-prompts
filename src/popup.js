@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!chatGPTTextarea) {
                     return null;
                 }
-                return textarea.value;
+                return chatGPTTextarea.value;
             }
         }, function (results) {
             if (results && results[0].result) {
